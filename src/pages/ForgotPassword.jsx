@@ -1,14 +1,31 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X } from 'lucide-react'
+import { X, Loader2 } from 'lucide-react'
+import * as authApi from '../api/auth'
 
 export default function ForgotPassword() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    navigate('/verify-otp')
+    setLoading(true)
+    setError('')
+    try {
+      await authApi.requestPasswordReset({ email })
+      // Pass email and context to OTP page for the reset-confirm call
+      navigate('/verify-otp', { state: { fromForgotPassword: true, email } })
+    } catch (err) {
+      const msg =
+        err?.response?.data?.error?.detail ||
+        err?.response?.data?.detail ||
+        'Something went wrong. Please try again.'
+      setError(msg)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -26,8 +43,14 @@ export default function ForgotPassword() {
 
         <h1 className="text-3xl font-bold text-center text-blue-600 mb-2">Forgot Password</h1>
         <p className="text-center text-gray-700 font-medium mb-8">
-          Please enter your email to continue
+          Enter your account email. We'll send you a 6-digit reset code.
         </p>
+
+        {error && (
+          <div className="mb-5 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
@@ -38,20 +61,23 @@ export default function ForgotPassword() {
               id="forgot-email"
               name="email"
               type="email"
-              placeholder="Esteban_schiller@gmail.com"
+              placeholder="officer@dept.gov"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); setError('') }}
               className="input-field"
               required
+              disabled={loading}
             />
           </div>
 
           <button
             id="forgot-send-btn"
             type="submit"
-            className="btn-blue-gradient w-full py-4 text-base"
+            disabled={loading}
+            className="btn-blue-gradient w-full py-4 text-base flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            Send
+            {loading && <Loader2 size={18} className="animate-spin" />}
+            {loading ? 'Sending…' : 'Send Reset Code'}
           </button>
         </form>
       </div>

@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { listDocuments } from '../../api/documents';
+import { getSubscriptionStatus } from '../../api/subscriptions';
 import { 
   ShieldAlert, 
   FileSearch, 
@@ -9,77 +12,107 @@ import {
   ArrowRight,
   User,
   ShieldCheck,
-  Clock
+  Clock,
+  Loader2
 } from 'lucide-react';
+
+const DOC_TYPE_LABELS = {
+  incident_report: 'Incident Report',
+  search_warrant: 'Search Warrant',
+  arrest_warrant: 'Arrest Warrant',
+};
 
 export default function OfficerDashboard() {
   const { user } = useAuth();
 
-  const recentDocuments = [
-    {
-      id: 1,
-      title: 'Incident Report - Downtown Robbery',
-      identifier: 'CASE-2023-0842',
-      date: 'Jun 7, 2026',
-      status: 'Saved',
-      type: 'Incident Report'
-    },
-    {
-      id: 2,
-      title: 'Search Warrant - 404 Elm St',
-      identifier: 'WARR-2023-0192',
-      date: 'Jun 5, 2026',
-      status: 'Exported',
-      type: 'Search Warrant'
-    },
-    {
-      id: 3,
-      title: 'Arrest Warrant - John Doe',
-      identifier: 'WARR-2023-0195',
-      date: 'Jun 3, 2026',
-      status: 'Draft',
-      type: 'Arrest Warrant'
-    }
-  ];
+  const [recentDocs, setRecentDocs] = useState([]);
+  const [subscription, setSubscription] = useState(null);
+  const [docsLoading, setDocsLoading] = useState(true);
+  const [subLoading, setSubLoading] = useState(true);
+
+  useEffect(() => {
+    // Fetch recent documents (first 3)
+    listDocuments({ page: 1 })
+      .then(({ data }) => {
+        const results = data.results || data;
+        setRecentDocs(results.slice(0, 3));
+      })
+      .catch(() => {})
+      .finally(() => setDocsLoading(false));
+
+    // Fetch subscription status
+    getSubscriptionStatus()
+      .then(({ data }) => setSubscription(data))
+      .catch(() => {})
+      .finally(() => setSubLoading(false));
+  }, []);
 
   const getStatusBadge = (status) => {
     switch (status) {
-      case 'Saved':
+      case 'completed':
         return <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">Saved</span>;
-      case 'Exported':
-        return <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">Exported</span>;
-      case 'Draft':
-        return <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">Draft</span>;
+      case 'failed':
+        return <span className="px-3 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">Failed</span>;
       default:
-        return null;
+        return <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">{status}</span>;
     }
   };
+
+  // Subscription info
+  const planName = subscription?.plan?.display_name || user?.subscription?.plan_display || 'Free';
+  const docsUsed = subscription?.documents_generated_this_month ?? user?.subscription?.documents_generated_this_month ?? 0;
+  const docsLimit = subscription?.plan?.document_limit ?? user?.subscription?.document_limit ?? 3;
+  const usagePct = docsLimit > 0 ? Math.min((docsUsed / docsLimit) * 100, 100) : 0;
+
+  // Plan capabilities (for module gating)
+  const planObj = subscription?.plan || user?.subscription || {};
+  const canSearchWarrant = planObj.can_search_warrant ?? false;
+  const canArrestWarrant = planObj.can_arrest_warrant ?? false;
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       {/* Welcome Banner */}
       <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2 font-serif">Welcome, {user?.name || 'Detective Sarah Jenkins'}</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 font-serif">
+            Welcome, {user?.full_name || user?.first_name || 'Officer'}
+          </h1>
           <p className="text-gray-500 text-lg">Select a module below to begin drafting secure documentation.</p>
         </div>
         <div className="bg-gray-50 rounded-xl p-5 border border-gray-100 min-w-[300px]">
-          <div className="flex justify-between items-center mb-3">
-            <span className="text-sm text-gray-500 font-medium">Current Plan: <span className="text-gray-900 font-bold">{user?.plan || 'Detective Plan'}</span></span>
-          </div>
-          <div className="flex justify-between items-center text-xs text-gray-500 mb-2 font-medium">
-            <span>14 / 50 Documents Generated This Month</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div className="bg-blue-600 h-2 rounded-full" style={{ width: '28%' }}></div>
-          </div>
+          {subLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="animate-spin text-gray-400" size={20} />
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-sm text-gray-500 font-medium">
+                  Current Plan: <span className="text-gray-900 font-bold">{planName}</span>
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs text-gray-500 mb-2 font-medium">
+                <span>
+                  {docsLimit >= 9999
+                    ? `${docsUsed} Documents Generated This Month (Unlimited)`
+                    : `${docsUsed} / ${docsLimit} Documents Generated This Month`}
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all"
+                  style={{ width: `${usagePct}%` }}
+                ></div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       <div>
         <h2 className="text-xl font-bold text-gray-900 mb-6 font-serif">Document Generation Modules</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Module 1 */}
+          {/* Module 1 — Incident Reports (always available) */}
           <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
             <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200">
               <ShieldAlert className="text-white" size={28} />
@@ -93,36 +126,65 @@ export default function OfficerDashboard() {
             </Link>
           </div>
 
-          {/* Module 2 */}
-          <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-            <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200">
-              <FileSearch className="text-white" size={28} />
+          {/* Module 2 — Search Warrants */}
+          {canSearchWarrant ? (
+            <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+              <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200">
+                <FileSearch className="text-white" size={28} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3 font-serif">AI Search Warrants</h3>
+              <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+                Draft legally sound search warrant affidavits with proper probable cause structuring.
+              </p>
+              <Link to="/dashboard/create/search-warrant" className="text-blue-600 font-semibold text-sm flex items-center hover:text-blue-700">
+                Launch Module <ArrowRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
+              </Link>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-3 font-serif">AI Search Warrants</h3>
-            <p className="text-gray-500 text-sm mb-8 leading-relaxed">
-              Draft legally sound search warrant affidavits with proper probable cause structuring.
-            </p>
-            <button className="text-blue-600 font-semibold text-sm flex items-center hover:text-blue-700">
-              Launch Module <ArrowRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
-            </button>
-          </div>
+          ) : (
+            <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm relative opacity-70">
+              <div className="absolute top-6 right-6 text-gray-400"><Lock size={20} /></div>
+              <div className="w-14 h-14 bg-gray-100 border-2 border-gray-200 rounded-2xl flex items-center justify-center mb-6">
+                <FileSearch className="text-gray-400" size={28} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-400 mb-3 font-serif">AI Search Warrants</h3>
+              <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+                Draft legally sound search warrant affidavits with proper probable cause structuring.
+              </p>
+              <Link to="/pricing" className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Upgrade to Access
+              </Link>
+            </div>
+          )}
 
-          {/* Module 3 (Locked) */}
-          <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm relative opacity-70">
-            <div className="absolute top-6 right-6 text-gray-400">
-              <Lock size={20} />
+          {/* Module 3 — Arrest Warrants */}
+          {canArrestWarrant ? (
+            <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+              <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200">
+                <UserPlus className="text-white" size={28} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3 font-serif">AI Arrest Warrants</h3>
+              <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+                Create detailed arrest warrant applications based on suspect and case entity data.
+              </p>
+              <Link to="/dashboard/create/arrest-warrant" className="text-blue-600 font-semibold text-sm flex items-center hover:text-blue-700">
+                Launch Module <ArrowRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
+              </Link>
             </div>
-            <div className="w-14 h-14 bg-gray-100 border-2 border-gray-200 rounded-2xl flex items-center justify-center mb-6">
-              <UserPlus className="text-gray-400" size={28} />
+          ) : (
+            <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm relative opacity-70">
+              <div className="absolute top-6 right-6 text-gray-400"><Lock size={20} /></div>
+              <div className="w-14 h-14 bg-gray-100 border-2 border-gray-200 rounded-2xl flex items-center justify-center mb-6">
+                <UserPlus className="text-gray-400" size={28} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-400 mb-3 font-serif">AI Arrest Warrants</h3>
+              <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+                Create detailed arrest warrant applications based on suspect and case entity data.
+              </p>
+              <Link to="/pricing" className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Upgrade to Access
+              </Link>
             </div>
-            <h3 className="text-xl font-bold text-gray-400 mb-3 font-serif">AI Arrest Warrants</h3>
-            <p className="text-gray-400 text-sm mb-8 leading-relaxed">
-              Create detailed arrest warrant applications based on suspect and case entity data.
-            </p>
-            <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
-              Upgrade to Access
-            </button>
-          </div>
+          )}
         </div>
       </div>
 
@@ -141,26 +203,34 @@ export default function OfficerDashboard() {
             </Link>
           </div>
           <div className="divide-y divide-gray-100">
-            {recentDocuments.map((doc) => (
-              <div key={doc.id} className="p-6 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                <div className="flex items-start gap-4">
-                  <div className="mt-1 text-gray-400">
-                    <FileText size={20} />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-900 mb-1">{doc.title}</h4>
-                    <div className="text-xs text-gray-500 flex items-center gap-2">
-                      <span>{doc.identifier}</span>
-                      <span>•</span>
-                      <span>{doc.date}</span>
+            {docsLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="animate-spin text-gray-400" size={24} />
+              </div>
+            ) : recentDocs.length === 0 ? (
+              <div className="text-center py-10 text-gray-400 text-sm">No documents yet. Generate your first one above!</div>
+            ) : (
+              recentDocs.map((doc) => (
+                <Link key={doc.id} to={`/dashboard/document/${doc.id}`} className="p-6 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start gap-4">
+                    <div className="mt-1 text-gray-400">
+                      <FileText size={20} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-1">
+                        {DOC_TYPE_LABELS[doc.doc_type] || doc.doc_type} — {doc.case_number}
+                      </h4>
+                      <div className="text-xs text-gray-500 flex items-center gap-2">
+                        <span>{doc.case_number}</span>
+                        <span>•</span>
+                        <span>{new Date(doc.created_at).toLocaleDateString()}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div>
-                  {getStatusBadge(doc.status)}
-                </div>
-              </div>
-            ))}
+                  <div>{getStatusBadge(doc.status)}</div>
+                </Link>
+              ))
+            )}
           </div>
         </div>
 
@@ -180,7 +250,7 @@ export default function OfficerDashboard() {
               </div>
             </Link>
             
-            <Link to="/dashboard/profile" className="flex items-start gap-4 p-4 border border-gray-100 rounded-xl hover:border-gray-300 transition-colors group">
+            <Link to="/pricing" className="flex items-start gap-4 p-4 border border-gray-100 rounded-xl hover:border-gray-300 transition-colors group">
               <div className="p-3 bg-orange-50 rounded-lg group-hover:bg-white transition-colors">
                 <ShieldCheck className="text-orange-600" size={20} />
               </div>

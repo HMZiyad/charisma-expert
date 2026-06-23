@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, ShieldAlert } from 'lucide-react';
+import { Eye, EyeOff, ShieldAlert, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import logoImg from '../../assets/logo.png';
 
@@ -9,21 +9,33 @@ export default function AdminLogin() {
   const { adminLogin } = useAuth();
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
+    if (error) setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Mock admin login flow
-    adminLogin({
-      name: 'System Admin',
-      role: 'Owner',
-      email: form.email || 'admin@aaat.com',
-    });
-    navigate('/admin');
+    setLoading(true);
+    setError('');
+    try {
+      await adminLogin(form.email, form.password);
+      navigate('/admin');
+    } catch (err) {
+      const msg =
+        err?.message === 'Access denied: not an admin account.'
+          ? err.message
+          : err?.response?.data?.detail ||
+            err?.response?.data?.error?.detail ||
+            'Authentication failed. Please check your credentials.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -45,7 +57,13 @@ export default function AdminLogin() {
            <span className="text-sm font-semibold tracking-wider uppercase text-red-400">Admin Portal</span>
         </div>
 
-        <h1 className="text-2xl font-bold text-center text-white mb-8">System Login</h1>
+        <h1 className="text-2xl font-bold text-center text-white mb-6">System Login</h1>
+
+        {error && (
+          <div className="mb-5 px-4 py-3 bg-red-900/40 border border-red-700 text-red-300 rounded-xl text-sm text-center">
+            {error}
+          </div>
+        )}
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
@@ -61,6 +79,7 @@ export default function AdminLogin() {
               onChange={handleChange}
               className="w-full px-4 py-3 bg-[#0f172a] border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               required
+              disabled={loading}
             />
           </div>
 
@@ -78,6 +97,7 @@ export default function AdminLogin() {
                 onChange={handleChange}
                 className="w-full pl-4 pr-12 py-3 bg-[#0f172a] border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 required
+                disabled={loading}
               />
               <button
                 type="button"
@@ -92,9 +112,11 @@ export default function AdminLogin() {
 
           <button
             type="submit"
-            className="w-full py-3.5 mt-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/30 transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2"
+            disabled={loading}
+            className="w-full py-3.5 mt-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/30 transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:translate-y-0"
           >
-            Authenticate
+            {loading && <Loader2 size={18} className="animate-spin" />}
+            {loading ? 'Authenticating…' : 'Authenticate'}
           </button>
         </form>
       </div>

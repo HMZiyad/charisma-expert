@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, X } from 'lucide-react'
+import { Eye, EyeOff, X, Loader2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Login() {
@@ -8,23 +8,32 @@ export default function Login() {
   const { login } = useAuth()
   const [form, setForm] = useState({ email: '', password: '', remember: false })
   const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
     setForm({ ...form, [name]: type === 'checkbox' ? checked : value })
+    if (error) setError('')
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // Mock login flow
-    login({
-      name: 'Sarah Jenkins',
-      badge: 'NYPD-7492',
-      email: form.email || 'officer@aaat.com',
-      rank: 'Detective',
-      plan: 'Detective Plan'
-    })
-    navigate('/dashboard')
+    setLoading(true)
+    setError('')
+    try {
+      await login(form.email, form.password)
+      navigate('/dashboard')
+    } catch (err) {
+      const detail =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error?.detail ||
+        err?.response?.data?.non_field_errors?.[0] ||
+        'Invalid credentials. Please try again.'
+      setError(detail)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -45,6 +54,12 @@ export default function Login() {
           Please enter your email and password to continue
         </p>
 
+        {error && (
+          <div className="mb-5 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">
+            {error}
+          </div>
+        )}
+
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
             <label htmlFor="login-email" className="block text-sm font-semibold text-gray-800 mb-2">
@@ -54,11 +69,12 @@ export default function Login() {
               id="login-email"
               name="email"
               type="email"
-              placeholder="Esteban_schiller@gmail.com"
+              placeholder="officer@dept.gov"
               value={form.email}
               onChange={handleChange}
               className="input-field"
               required
+              disabled={loading}
             />
           </div>
 
@@ -76,6 +92,7 @@ export default function Login() {
                 onChange={handleChange}
                 className="input-field pr-12"
                 required
+                disabled={loading}
               />
               <button
                 type="button"
@@ -91,12 +108,12 @@ export default function Login() {
           <button
             id="login-submit-btn"
             type="submit"
-            className="btn-blue-gradient w-full py-4 text-base rounded-xl font-semibold text-white shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 active:translate-y-0"
-            style={{
-              background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)'
-            }}
+            disabled={loading}
+            className="btn-blue-gradient w-full py-4 text-base rounded-xl font-semibold text-white shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:translate-y-0"
+            style={{ background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)' }}
           >
-            Sign In
+            {loading && <Loader2 size={18} className="animate-spin" />}
+            {loading ? 'Signing in…' : 'Sign In'}
           </button>
 
           <div className="flex items-center justify-between text-sm">

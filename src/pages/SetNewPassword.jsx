@@ -1,20 +1,50 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, X } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { Eye, EyeOff, X, Loader2 } from 'lucide-react'
+import * as authApi from '../api/auth'
 
 export default function SetNewPassword() {
   const navigate = useNavigate()
+  const location = useLocation()
+  // email and OTP code are forwarded through state from OTPVerify
+  const { email, code } = location.state || {}
+
   const [form, setForm] = useState({ newPassword: '', confirmPassword: '' })
   const [showNew, setShowNew] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value })
+    if (error) setError('')
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    navigate('/login')
+    if (form.newPassword !== form.confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      await authApi.confirmPasswordReset({
+        email,
+        code,
+        new_password: form.newPassword,
+      })
+      navigate('/login', { state: { passwordReset: true } })
+    } catch (err) {
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.detail ||
+        err?.response?.data?.error?.detail ||
+        'Failed to reset password. Please start over.'
+      setError(typeof msg === 'string' ? msg : 'Failed to reset password. Please start over.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -32,8 +62,14 @@ export default function SetNewPassword() {
 
         <h1 className="text-3xl font-bold text-center text-blue-600 mb-2">Set a new password</h1>
         <p className="text-center text-gray-700 font-medium mb-8">
-          Create a new password. Ensure it differs from previous ones for security
+          Create a new password. Ensure it differs from previous ones for security.
         </p>
+
+        {error && (
+          <div className="mb-5 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
@@ -50,6 +86,7 @@ export default function SetNewPassword() {
                 onChange={handleChange}
                 className="input-field pr-12"
                 required
+                disabled={loading}
               />
               <button
                 type="button"
@@ -76,6 +113,7 @@ export default function SetNewPassword() {
                 onChange={handleChange}
                 className="input-field pr-12"
                 required
+                disabled={loading}
               />
               <button
                 type="button"
@@ -91,9 +129,11 @@ export default function SetNewPassword() {
           <button
             id="reset-submit-btn"
             type="submit"
-            className="btn-blue-gradient w-full py-4 text-base"
+            disabled={loading}
+            className="btn-blue-gradient w-full py-4 text-base flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            Update Password
+            {loading && <Loader2 size={18} className="animate-spin" />}
+            {loading ? 'Updating…' : 'Update Password'}
           </button>
         </form>
       </div>

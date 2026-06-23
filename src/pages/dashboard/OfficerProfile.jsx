@@ -1,133 +1,295 @@
+import { useState, useEffect } from 'react';
+import { User, Shield, Briefcase, Mail, Key, Phone, Building, Hash, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { User, Shield, CheckCircle2, XCircle, Key, Bell } from 'lucide-react';
+import { getProfile, updateProfile, changePassword } from '../../api/auth';
+import { getSubscriptionStatus } from '../../api/subscriptions';
 
 export default function OfficerProfile() {
-  const { user } = useAuth();
+  const { updateUser } = useAuth();
+  const [profile, setProfile] = useState(null);
+  const [subscription, setSubscription] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState('');
+
+  const [isChangingPass, setIsChangingPass] = useState(false);
+  const [passForm, setPassForm] = useState({ old_password: '', new_password: '' });
+  const [savingPass, setSavingPass] = useState(false);
+  const [passError, setPassError] = useState('');
+  const [passSuccess, setPassSuccess] = useState('');
+
+  useEffect(() => {
+    Promise.all([getProfile(), getSubscriptionStatus()])
+      .then(([profRes, subRes]) => {
+        setProfile(profRes.data);
+        setEditForm(profRes.data);
+        setSubscription(subRes.data);
+      })
+      .catch(() => setProfileError('Failed to load profile data.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleProfileSave = async (e) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    setProfileError('');
+    try {
+      const { data } = await updateProfile(editForm);
+      setProfile(data);
+      updateUser(data); // update Context
+      setIsEditing(false);
+    } catch (err) {
+      setProfileError('Failed to update profile.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handlePasswordSave = async (e) => {
+    e.preventDefault();
+    setSavingPass(true);
+    setPassError('');
+    setPassSuccess('');
+    try {
+      await changePassword(passForm);
+      setPassSuccess('Password changed successfully.');
+      setIsChangingPass(false);
+      setPassForm({ old_password: '', new_password: '' });
+    } catch (err) {
+      setPassError(err?.response?.data?.old_password?.[0] || 'Failed to change password.');
+    } finally {
+      setSavingPass(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="animate-spin text-blue-600" size={32} />
+      </div>
+    );
+  }
+
+  if (!profile) return <div className="p-8 text-red-600">Failed to load profile.</div>;
+
+  const plan = subscription?.plan || profile.subscription || {};
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-6">
-      {/* Header */}
+    <div className="p-8 max-w-5xl mx-auto space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 font-serif">Profile & Settings</h1>
-        <p className="text-gray-500 mt-1 text-lg">Manage your officer credentials, security settings, and subscription.</p>
+        <h1 className="text-3xl font-bold text-gray-900 font-serif">Officer Profile</h1>
+        <p className="text-gray-500 mt-1">Manage your professional credentials and account security.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column */}
+        
+        {/* Left Col: Credentials & Password */}
         <div className="lg:col-span-2 space-y-8">
           
-          {/* Officer Information Card */}
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          {/* Credentials Card */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
               <div className="flex items-center gap-3">
-                <User className="text-gray-500" size={24} />
-                <h2 className="text-xl font-bold text-gray-900 font-serif">Officer Information</h2>
-              </div>
-              <button className="text-blue-600 text-sm font-semibold hover:text-blue-700">Edit</button>
-            </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
-                <div className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-lg text-gray-900">{user?.name || 'Detective Sarah Jenkins'}</div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Rank / Title</label>
-                <div className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-lg text-gray-900">{user?.rank || 'Detective'}</div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Agency / Badge ID</label>
-                <div className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-lg text-gray-900">{user?.badge || 'NYPD-7492'}</div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Official Email</label>
-                <div className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-lg text-gray-900">{user?.email || 'sarah.jenkins@nypd.gov'}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Security Settings Card */}
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-              <Shield className="text-gray-500" size={24} />
-              <h2 className="text-xl font-bold text-gray-900 font-serif">Security Settings</h2>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="flex items-center justify-between pb-6 border-b border-gray-100">
-                <div>
-                  <h3 className="font-bold text-gray-900 mb-1">Two-Factor Authentication (2FA)</h3>
-                  <p className="text-gray-500 text-sm">Require a security code when logging in from a new device.</p>
+                <div className="p-2 bg-blue-100 rounded-lg text-blue-700">
+                  <User size={20} />
                 </div>
-                <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
-                  <input type="checkbox" name="toggle" id="toggle" defaultChecked className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-green-500 appearance-none cursor-pointer" style={{ right: 0, borderColor: '#fff' }}/>
-                  <label htmlFor="toggle" className="toggle-label block overflow-hidden h-6 rounded-full bg-green-500 cursor-pointer"></label>
-                </div>
+                <h2 className="text-xl font-bold text-gray-900 font-serif">Official Credentials</h2>
               </div>
-              
-              <div>
-                <button className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                  <Key size={16} className="mr-2" />
-                  Change Password
-                </button>
-              </div>
+              <button 
+                onClick={() => { setIsEditing(!isEditing); setEditForm(profile); setProfileError(''); }}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                {isEditing ? 'Cancel' : 'Edit Credentials'}
+              </button>
             </div>
-          </div>
-        </div>
-
-        {/* Right Column */}
-        <div className="space-y-8">
-          
-          {/* Subscription Status */}
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="bg-[#111625] p-6 text-white">
-              <h2 className="text-xl font-bold font-serif">Subscription Status</h2>
-            </div>
+            
             <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-gray-500 text-sm font-medium">Current Plan</span>
-                <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">Active</span>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 font-serif">{user?.plan || 'Detective Plan'}</h3>
+              {profileError && <p className="text-red-600 text-sm mb-4">{profileError}</p>}
               
-              <div className="mb-4">
-                <h4 className="text-sm font-bold text-gray-900 mb-3">Module Access</h4>
-                <ul className="space-y-3">
-                  <li className="flex items-center justify-between">
-                    <span className="text-gray-600 text-sm">AI Incident Reports</span>
-                    <CheckCircle2 className="text-green-500" size={20} />
-                  </li>
-                  <li className="flex items-center justify-between">
-                    <span className="text-gray-600 text-sm">AI Search Warrants</span>
-                    <CheckCircle2 className="text-green-500" size={20} />
-                  </li>
-                  <li className="flex items-center justify-between">
-                    <span className="text-gray-400 text-sm">AI Arrest Warrants</span>
-                    <XCircle className="text-gray-300" size={20} />
-                  </li>
-                </ul>
-              </div>
-              
-              <div className="pt-6 mt-6 border-t border-gray-100">
-                <button className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30">
-                  Upgrade Plan
-                </button>
-              </div>
+              {!isEditing ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
+                  <div>
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Full Name</div>
+                    <div className="text-gray-900 font-medium flex items-center gap-2">
+                      {profile.first_name} {profile.last_name}
+                      {profile.is_verified && <Shield className="text-blue-500 w-4 h-4" />}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Badge Number</div>
+                    <div className="text-gray-900 font-medium">{profile.badge_number}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Rank / Title</div>
+                    <div className="text-gray-900 font-medium">{profile.rank}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Division</div>
+                    <div className="text-gray-900 font-medium">{profile.division || 'N/A'}</div>
+                  </div>
+                  <div className="md:col-span-2 pt-4 border-t border-gray-100">
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Department</div>
+                    <div className="text-gray-900 font-medium">{profile.department_name}</div>
+                    <div className="text-gray-500 text-sm mt-1">{profile.department_address}, {profile.department_state}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">ORI Number</div>
+                    <div className="text-gray-900 font-medium font-mono text-sm">{profile.ori || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Contact Email</div>
+                    <div className="text-gray-900 font-medium">{profile.email}</div>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleProfileSave} className="grid grid-cols-1 md:grid-cols-2 gap-y-5 gap-x-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                    <input type="text" value={editForm.first_name} onChange={e => setEditForm({...editForm, first_name: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                    <input type="text" value={editForm.last_name} onChange={e => setEditForm({...editForm, last_name: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Badge Number</label>
+                    <input type="text" value={editForm.badge_number} onChange={e => setEditForm({...editForm, badge_number: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Rank / Title</label>
+                    <input type="text" value={editForm.rank} onChange={e => setEditForm({...editForm, rank: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Division</label>
+                    <input type="text" value={editForm.division} onChange={e => setEditForm({...editForm, division: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                    <input type="text" value={editForm.phone_number} onChange={e => setEditForm({...editForm, phone_number: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Department Name</label>
+                    <input type="text" value={editForm.department_name} onChange={e => setEditForm({...editForm, department_name: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                  </div>
+                  <div className="md:col-span-2 pt-4 flex justify-end gap-3 border-t border-gray-100">
+                    <button type="submit" disabled={savingProfile} className="px-5 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-70">
+                      {savingProfile ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
 
-          {/* System Notifications */}
-          <div className="bg-gray-50 border border-gray-200 rounded-2xl shadow-sm overflow-hidden p-6 flex items-start gap-4">
-            <div className="mt-0.5">
-              <Bell className="text-gray-400" size={24} />
+          {/* Security & Password */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gray-100 rounded-lg text-gray-700">
+                  <Key size={20} />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 font-serif">Security Settings</h2>
+              </div>
+              <button 
+                onClick={() => { setIsChangingPass(!isChangingPass); setPassError(''); setPassSuccess(''); }}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                {isChangingPass ? 'Cancel' : 'Change Password'}
+              </button>
             </div>
-            <div>
-              <h3 className="font-bold text-gray-900 mb-2">System Notifications</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">
-                Your agency administrator manages global data retention policies. Documents are securely archived according to department standards.
-              </p>
+            
+            <div className="p-6">
+              {passSuccess && <div className="mb-4 p-3 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm">{passSuccess}</div>}
+              {passError && <div className="mb-4 p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm">{passError}</div>}
+              
+              {!isChangingPass ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-900 font-medium">Account Password</p>
+                    <p className="text-gray-500 text-sm mt-1">Last changed: Unknown</p>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handlePasswordSave} className="space-y-4 max-w-md">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                    <input type="password" value={passForm.old_password} onChange={e => setPassForm({...passForm, old_password: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                    <input type="password" value={passForm.new_password} onChange={e => setPassForm({...passForm, new_password: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                  </div>
+                  <button type="submit" disabled={savingPass} className="px-5 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-70">
+                    {savingPass ? 'Updating...' : 'Update Password'}
+                  </button>
+                </form>
+              )}
             </div>
           </div>
-          
+
         </div>
+
+        {/* Right Col: Subscription Status */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden h-fit">
+          <div className="p-6 border-b border-gray-100 bg-gray-50/50">
+            <h2 className="text-xl font-bold text-gray-900 font-serif flex items-center gap-2">
+              <Briefcase size={20} className="text-blue-600" /> Subscription Plan
+            </h2>
+          </div>
+          
+          <div className="p-6">
+            <div className="mb-6">
+              <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1">Current Tier</p>
+              <h3 className="text-2xl font-bold text-gray-900">{plan.display_name || plan.plan_display || 'Free Tier'}</h3>
+              <p className="text-sm text-gray-500 mt-1">Billed {subscription?.billing_cycle || 'monthly'}</p>
+            </div>
+
+            <div className="space-y-4 mb-8">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-2">Module Access</p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-700 flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Incident Reports
+                  </span>
+                  <span className="font-semibold text-gray-900">Included</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-700 flex items-center gap-2">
+                    <div className={`w-1.5 h-1.5 rounded-full ${plan.can_search_warrant ? 'bg-blue-500' : 'bg-gray-300'}`}></div> Search Warrants
+                  </span>
+                  {plan.can_search_warrant ? <span className="font-semibold text-gray-900">Included</span> : <span className="text-gray-400">Locked</span>}
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-700 flex items-center gap-2">
+                    <div className={`w-1.5 h-1.5 rounded-full ${plan.can_arrest_warrant ? 'bg-blue-500' : 'bg-gray-300'}`}></div> Arrest Warrants
+                  </span>
+                  {plan.can_arrest_warrant ? <span className="font-semibold text-gray-900">Included</span> : <span className="text-gray-400">Locked</span>}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2 mb-6">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-600 font-medium">Generation Limit</span>
+                <span className="text-gray-900 font-bold">
+                  {subscription?.documents_generated_this_month || 0} / {plan.document_limit >= 9999 ? '∞' : plan.document_limit || 3}
+                </span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${Math.min((subscription?.documents_generated_this_month || 0)/(plan.document_limit || 3)*100, 100)}%` }}></div>
+              </div>
+              <p className="text-xs text-gray-500 text-center mt-2">Resets next billing cycle</p>
+            </div>
+
+            <button className="w-full py-2.5 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors">
+              Manage Billing
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   );

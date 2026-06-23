@@ -1,14 +1,27 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Clock, Trash2, ArrowRight } from 'lucide-react';
+import { Shield, Clock, Trash2, ArrowRight, Loader2 } from 'lucide-react';
+import { generateDocument } from '../../api/documents';
 
 export default function CreateIncidentReport() {
   const navigate = useNavigate();
+  
+  // Form State
+  const [caseNumber, setCaseNumber] = useState('');
+  const [incidentType, setIncidentType] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [location, setLocation] = useState('');
+  const [rawNotes, setRawNotes] = useState('');
+  const [narrativeStyle, setNarrativeStyle] = useState('third_person'); // match API enum
+  
   const [entities, setEntities] = useState([
     { id: 1, type: 'Suspect', field1: '', field2: '' },
     { id: 2, type: 'Evidence', field1: '', field2: '' }
   ]);
-  const [narrativeStyle, setNarrativeStyle] = useState('First-Person');
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const addEntity = (type) => {
     setEntities([...entities, { id: Date.now(), type, field1: '', field2: '' }]);
@@ -22,11 +35,80 @@ export default function CreateIncidentReport() {
     setEntities(entities.map(e => e.id === id ? { ...e, [field]: value } : e));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // In a real app, we would save the draft or submit for generation here.
-    // For now, we mock the transition to the generated document workspace.
-    navigate('/dashboard/document/draft-123');
+    setLoading(true);
+    setError('');
+
+    // Transform form state into API shape
+    const involved_parties = [];
+    const property_items = [];
+
+    entities.forEach(ent => {
+      if (!ent.field1 && !ent.field2) return;
+      if (ent.type === 'Evidence') {
+        property_items.push({
+          type: 'other',
+          value: null,
+          status: 'unknown',
+          description: `${ent.field1} - ${ent.field2}`.trim()
+        });
+      } else {
+        const roleMap = {
+          'Suspect': 'alleged',
+          'Victim': 'victim',
+          'Witness': 'witness'
+        };
+        involved_parties.push({
+          role: roleMap[ent.type] || 'other',
+          full_name: ent.field1,
+          phone: ent.field2
+        });
+      }
+    });
+
+    const payload = {
+      doc_type: 'incident_report',
+      narrative_style: narrativeStyle,
+      form_data: {
+        case_number: caseNumber || null,
+        incident: {
+          categories: [incidentType],
+          urgency: 'normal',
+          date,
+          time,
+          location
+        },
+        involved_parties,
+        property_items,
+        notifications: { weapon_involved: false, alcohol_drugs: false, is_hazing: false },
+        facts: {
+          what: `Incident: ${incidentType}`,
+          where: location,
+          when: `${date} ${time}`,
+          officer_actions: rawNotes
+        },
+        attachments: []
+      }
+    };
+
+    try {
+      const { data } = await generateDocument(payload);
+      // Navigate to the generated document view
+      navigate(`/dashboard/document/${data.id}`);
+    } catch (err) {
+      const msg = err?.response?.data?.error?.detail || err?.response?.data?.detail || 'Failed to generate document. Please try again.';
+      if (err?.response?.status === 403) {
+         setError('Your subscription plan does not allow generating this document type, or you have exceeded your limit.');
+      } else if (err?.response?.status === 503) {
+         setError('AI Engine is currently unavailable or loading. Please wait a moment and try again.');
+      } else {
+         setError(msg);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getEntityStyles = (type) => {
@@ -41,7 +123,7 @@ export default function CreateIncidentReport() {
 
   const getEntityPlaceholders = (type) => {
     if (type === 'Evidence') return ['Item Description', 'Location found / Serial #'];
-    return ['Full Name', 'DOB / Address / Contact'];
+    return ['Full Name', 'DOB / Contact Details'];
   };
 
   return (
@@ -58,6 +140,21 @@ export default function CreateIncidentReport() {
         </div>
       </div>
 
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="fixed inset-0 bg-white/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm">
+          <Loader2 className="w-16 h-16 text-blue-600 animate-spin mb-6" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Generating Document...</h2>
+          <p className="text-gray-500">The AI is structuring your narrative and performing leak checks. This may take up to a minute.</p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-8 pb-20">
         {/* Core Case Details */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
@@ -67,35 +164,69 @@ export default function CreateIncidentReport() {
           <div className="p-6 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Case / Incident Number *</label>
-                <input type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors" placeholder="e.g. 2023-0842" required />
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Case / Incident Number</label>
+                <input 
+                  type="text" 
+                  value={caseNumber}
+                  onChange={(e) => setCaseNumber(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors" 
+                  placeholder="e.g. 2023-0842 (Optional)" 
+                />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Incident Type *</label>
-                <input type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors" placeholder="e.g. Burglary, Assault" required />
+                <input 
+                  type="text" 
+                  value={incidentType}
+                  onChange={(e) => setIncidentType(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors" 
+                  placeholder="e.g. Burglary, Assault" 
+                  required 
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
-                <input type="date" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors text-gray-500" required />
+                <input 
+                  type="date" 
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors text-gray-700" 
+                  required 
+                />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Time *</label>
-                <input type="time" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors text-gray-500" required />
+                <input 
+                  type="time" 
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors text-gray-700" 
+                  required 
+                />
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Location *</label>
-              <input type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors" placeholder="123 Main St, City, State" required />
+              <input 
+                type="text" 
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors" 
+                placeholder="123 Main St, City, State" 
+                required 
+              />
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Raw Facts / Field Notes (Who, What, Why, How) *</label>
               <textarea 
                 rows="5" 
+                value={rawNotes}
+                onChange={(e) => setRawNotes(e.target.value)}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors resize-none" 
                 placeholder="Enter raw notes here. The AI will structure them into a formal narrative..."
                 required
@@ -119,25 +250,25 @@ export default function CreateIncidentReport() {
             {entities.map((entity) => {
               const placeholders = getEntityPlaceholders(entity.type);
               return (
-                <div key={entity.id} className="flex items-center gap-4 p-4 bg-gray-50/50 border border-gray-100 rounded-xl">
-                  <div className={`px-4 py-1.5 rounded-full text-xs font-bold w-24 text-center ${getEntityStyles(entity.type)}`}>
+                <div key={entity.id} className="flex flex-col md:flex-row items-center gap-4 p-4 bg-gray-50/50 border border-gray-100 rounded-xl">
+                  <div className={`px-4 py-1.5 rounded-full text-xs font-bold w-full md:w-24 text-center ${getEntityStyles(entity.type)}`}>
                     {entity.type}
                   </div>
                   <input 
                     type="text" 
                     value={entity.field1}
                     onChange={(e) => updateEntity(entity.id, 'field1', e.target.value)}
-                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm" 
+                    className="flex-1 w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm" 
                     placeholder={placeholders[0]} 
                   />
                   <input 
                     type="text" 
                     value={entity.field2}
                     onChange={(e) => updateEntity(entity.id, 'field2', e.target.value)}
-                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm" 
+                    className="flex-1 w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm" 
                     placeholder={placeholders[1]} 
                   />
-                  <button type="button" onClick={() => removeEntity(entity.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
+                  <button type="button" onClick={() => removeEntity(entity.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors md:ml-auto">
                     <Trash2 size={20} />
                   </button>
                 </div>
@@ -157,13 +288,13 @@ export default function CreateIncidentReport() {
             <h2 className="text-xl font-bold text-gray-900 font-serif">Narrative Style</h2>
           </div>
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <label className={`flex items-start p-4 border rounded-xl cursor-pointer transition-colors ${narrativeStyle === 'First-Person' ? 'border-blue-500 bg-blue-50/30' : 'border-gray-200 hover:bg-gray-50'}`}>
+            <label className={`flex items-start p-4 border rounded-xl cursor-pointer transition-colors ${narrativeStyle === 'first_person' ? 'border-blue-500 bg-blue-50/30' : 'border-gray-200 hover:bg-gray-50'}`}>
               <input 
                 type="radio" 
                 name="narrativeStyle" 
-                value="First-Person" 
-                checked={narrativeStyle === 'First-Person'} 
-                onChange={() => setNarrativeStyle('First-Person')}
+                value="first_person" 
+                checked={narrativeStyle === 'first_person'} 
+                onChange={() => setNarrativeStyle('first_person')}
                 className="mt-1 mr-4 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" 
               />
               <div>
@@ -172,13 +303,13 @@ export default function CreateIncidentReport() {
               </div>
             </label>
 
-            <label className={`flex items-start p-4 border rounded-xl cursor-pointer transition-colors ${narrativeStyle === 'Third-Person' ? 'border-blue-500 bg-blue-50/30' : 'border-gray-200 hover:bg-gray-50'}`}>
+            <label className={`flex items-start p-4 border rounded-xl cursor-pointer transition-colors ${narrativeStyle === 'third_person' ? 'border-blue-500 bg-blue-50/30' : 'border-gray-200 hover:bg-gray-50'}`}>
               <input 
                 type="radio" 
                 name="narrativeStyle" 
-                value="Third-Person" 
-                checked={narrativeStyle === 'Third-Person'} 
-                onChange={() => setNarrativeStyle('Third-Person')}
+                value="third_person" 
+                checked={narrativeStyle === 'third_person'} 
+                onChange={() => setNarrativeStyle('third_person')}
                 className="mt-1 mr-4 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" 
               />
               <div>
@@ -190,7 +321,11 @@ export default function CreateIncidentReport() {
         </div>
 
         <div className="flex justify-end">
-          <button type="submit" className="flex items-center bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold transition-colors shadow-lg shadow-blue-500/30">
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors shadow-lg shadow-blue-500/30 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
             One-Click AI Generation
             <ArrowRight className="ml-2" size={18} />
           </button>

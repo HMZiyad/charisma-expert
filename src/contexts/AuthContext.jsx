@@ -1,42 +1,98 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
+import * as authApi from '../api/auth';
 
 const AuthContext = createContext(null);
 
+// ── Keys used in localStorage ─────────────────────────────────────────────────
+const KEYS = {
+  user: 'auth_user',
+  access: 'access_token',
+  refresh: 'refresh_token',
+  adminUser: 'admin_user',
+  adminAccess: 'admin_access_token',
+  adminRefresh: 'admin_refresh_token',
+};
+
+const loadJson = (key) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const AuthProvider = ({ children }) => {
-  // Existing User Auth (Officer)
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('mockUser');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
+  // ── Officer auth ─────────────────────────────────────────────────────────────
+  const [user, setUser] = useState(() => loadJson(KEYS.user));
 
-  const login = (userData) => {
-    setUser(userData);
-    localStorage.setItem('mockUser', JSON.stringify(userData));
-  };
+  const login = useCallback(async (email, password) => {
+    const { data } = await authApi.login({ email, password });
+    localStorage.setItem(KEYS.access, data.access);
+    localStorage.setItem(KEYS.refresh, data.refresh);
+    localStorage.setItem(KEYS.user, JSON.stringify(data.user));
+    setUser(data.user);
+    return data;
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(async () => {
+    const refresh = localStorage.getItem(KEYS.refresh);
+    if (refresh) {
+      try {
+        await authApi.logout({ refresh });
+      } catch (_) {
+        // ignore — still clear local storage
+      }
+    }
+    [KEYS.user, KEYS.access, KEYS.refresh].forEach((k) =>
+      localStorage.removeItem(k)
+    );
     setUser(null);
-    localStorage.removeItem('mockUser');
-  };
+  }, []);
 
-  // Admin Auth
-  const [adminUser, setAdminUser] = useState(() => {
-    const savedAdmin = localStorage.getItem('mockAdminUser');
-    return savedAdmin ? JSON.parse(savedAdmin) : null;
-  });
+  /** Update in-memory user after profile edits */
+  const updateUser = useCallback((updatedUser) => {
+    localStorage.setItem(KEYS.user, JSON.stringify(updatedUser));
+    setUser(updatedUser);
+  }, []);
 
-  const adminLogin = (userData) => {
-    setAdminUser(userData);
-    localStorage.setItem('mockAdminUser', JSON.stringify(userData));
-  };
+  // ── Admin auth ───────────────────────────────────────────────────────────────
+  const [adminUser, setAdminUser] = useState(() => loadJson(KEYS.adminUser));
 
-  const adminLogout = () => {
+  const adminLogin = useCallback(async (email, password) => {
+    const { data } = await authApi.login({ email, password });
+    if (data.user?.role !== 'admin') {
+      throw new Error('Access denied: not an admin account.');
+    }
+    localStorage.setItem(KEYS.adminAccess, data.access);
+    localStorage.setItem(KEYS.adminRefresh, data.refresh);
+    localStorage.setItem(KEYS.adminUser, JSON.stringify(data.user));
+    // Also set the primary access token so axiosInstance uses it for admin requests
+    localStorage.setItem(KEYS.access, data.access);
+    localStorage.setItem(KEYS.refresh, data.refresh);
+    setAdminUser(data.user);
+    return data;
+  }, []);
+
+  const adminLogout = useCallback(async () => {
+    const refresh = localStorage.getItem(KEYS.adminRefresh);
+    if (refresh) {
+      try {
+        await authApi.logout({ refresh });
+      } catch (_) {
+        // ignore
+      }
+    }
+    [KEYS.adminUser, KEYS.adminAccess, KEYS.adminRefresh, KEYS.access, KEYS.refresh].forEach(
+      (k) => localStorage.removeItem(k)
+    );
     setAdminUser(null);
-    localStorage.removeItem('mockAdminUser');
-  };
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, adminUser, adminLogin, adminLogout }}>
+    <AuthContext.Provider
+      value={{ user, login, logout, updateUser, adminUser, adminLogin, adminLogout }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -5,7 +5,8 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Home from './pages/Home'
 import Pricing from './pages/Pricing'
 import Blog from './pages/Blog'
-import Videos from './pages/Videos'
+import BlogPost from './pages/BlogPost'
+
 import About from './pages/About'
 import FAQ from './pages/FAQ'
 import Contact from './pages/Contact'
@@ -46,7 +47,8 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/blog" element={<Blog />} />
-        <Route path="/videos" element={<Videos />} />
+        <Route path="/blog/:slug" element={<BlogPost />} />
+
         <Route path="/about" element={<About />} />
         <Route path="/faq" element={<FAQ />} />
         <Route path="/contact" element={<Contact />} />

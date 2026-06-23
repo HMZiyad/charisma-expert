@@ -10,7 +10,7 @@ const footerLinks = {
   ],
   Resources: [
     { label: 'Blog & News', to: '/blog' },
-    { label: 'Video Library', to: '/videos' },
+
     { label: 'FAQ', to: '/faq' },
   ],
   Company: [
