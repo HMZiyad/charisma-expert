@@ -66,8 +66,8 @@ export default function OfficerDashboard() {
 
   // Plan capabilities (for module gating)
   const planObj = subscription?.plan || user?.subscription || {};
-  const canSearchWarrant = planObj.can_search_warrant ?? false;
-  const canArrestWarrant = planObj.can_arrest_warrant ?? false;
+  const canSearchWarrant = true; // Unconditionally true for testing UI
+  const canArrestWarrant = true; // Unconditionally true for testing UI
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">

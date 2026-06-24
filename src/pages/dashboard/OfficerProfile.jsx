@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { User, Shield, Briefcase, Mail, Key, Phone, Building, Hash, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getProfile, updateProfile, changePassword } from '../../api/auth';
-import { getSubscriptionStatus } from '../../api/subscriptions';
+import { getSubscriptionStatus, listPlans } from '../../api/subscriptions';
 
 export default function OfficerProfile() {
   const { updateUser } = useAuth();
@@ -21,12 +21,26 @@ export default function OfficerProfile() {
   const [passError, setPassError] = useState('');
   const [passSuccess, setPassSuccess] = useState('');
 
+  const [defaultPlan, setDefaultPlan] = useState(null);
+
   useEffect(() => {
-    Promise.all([getProfile(), getSubscriptionStatus()])
-      .then(([profRes, subRes]) => {
+    // We catch the subscription error individually so that a missing subscription
+    // doesn't cause the entire Profile promise array to reject.
+    const fetchSub = getSubscriptionStatus().catch(() => ({ data: null }));
+    const fetchPlans = listPlans().catch(() => ({ data: [] }));
+    
+    Promise.all([getProfile(), fetchSub, fetchPlans])
+      .then(([profRes, subRes, plansRes]) => {
         setProfile(profRes.data);
         setEditForm(profRes.data);
         setSubscription(subRes.data);
+        
+        // If there is no active subscription, we figure out the default plan from the plans list
+        if (!subRes.data && plansRes.data && plansRes.data.length > 0) {
+          // Sort by price or sort_order to find the "Free Tier" or lowest tier
+          const sorted = [...plansRes.data].sort((a, b) => parseFloat(a.price_monthly) - parseFloat(b.price_monthly));
+          setDefaultPlan(sorted[0]);
+        }
       })
       .catch(() => setProfileError('Failed to load profile data.'))
       .finally(() => setLoading(false));
@@ -75,7 +89,7 @@ export default function OfficerProfile() {
 
   if (!profile) return <div className="p-8 text-red-600">Failed to load profile.</div>;
 
-  const plan = subscription?.plan || profile.subscription || {};
+  const plan = subscription?.plan || defaultPlan || profile.subscription || {};
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-8">

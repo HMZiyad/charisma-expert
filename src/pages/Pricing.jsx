@@ -3,11 +3,16 @@ import { Link } from 'react-router-dom'
 import { Check, X, Lock, Loader2 } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
-import { listPlans } from '../api/subscriptions'
+import { listPlans, subscribeToPlan } from '../api/subscriptions'
+import { useAuth } from '../contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 export default function Pricing() {
   const [plans, setPlans] = useState([])
   const [loading, setLoading] = useState(true)
+  const [subscribingTo, setSubscribingTo] = useState(null)
+  const { user } = useAuth()
+  const navigate = useNavigate()
 
   useEffect(() => {
     listPlans()
@@ -107,13 +112,29 @@ export default function Pricing() {
                     </ul>
 
                     <button
-                      className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors ${
+                      onClick={async () => {
+                        if (!user) {
+                          navigate('/login')
+                          return
+                        }
+                        setSubscribingTo(plan.id)
+                        try {
+                          await subscribeToPlan(plan.id)
+                          navigate('/dashboard')
+                        } catch (err) {
+                          alert('Failed to subscribe. Please try again.')
+                        } finally {
+                          setSubscribingTo(null)
+                        }
+                      }}
+                      disabled={subscribingTo === plan.id}
+                      className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center ${
                         isPopular
-                          ? 'bg-navy-800 text-white hover:bg-navy-700'
-                          : 'border-2 border-gray-200 text-gray-700 hover:border-navy-800 hover:text-navy-800'
+                          ? 'bg-navy-800 text-white hover:bg-navy-700 disabled:opacity-70'
+                          : 'border-2 border-gray-200 text-gray-700 hover:border-navy-800 hover:text-navy-800 disabled:opacity-70'
                       }`}
                     >
-                      {isPopular ? 'Start Detective Plan' : 'Select Plan'}
+                      {subscribingTo === plan.id ? <Loader2 className="animate-spin" size={18} /> : isPopular ? 'Start Detective Plan' : 'Select Plan'}
                     </button>
                   </div>
                 )

@@ -19,6 +19,8 @@ import SetNewPassword from './pages/SetNewPassword'
 import OfficerLayout from './layouts/OfficerLayout'
 import OfficerDashboard from './pages/dashboard/OfficerDashboard'
 import CreateIncidentReport from './pages/dashboard/CreateIncidentReport'
+import CreateSearchWarrant from './pages/dashboard/CreateSearchWarrant'
+import CreateArrestWarrant from './pages/dashboard/CreateArrestWarrant'
 import DocumentHistory from './pages/dashboard/DocumentHistory'
 import GeneratedDocument from './pages/dashboard/GeneratedDocument'
 import OfficerProfile from './pages/dashboard/OfficerProfile'
@@ -66,6 +68,8 @@ export default function App() {
         }>
           <Route index element={<OfficerDashboard />} />
           <Route path="create/incident-report" element={<CreateIncidentReport />} />
+          <Route path="create/search-warrant" element={<CreateSearchWarrant />} />
+          <Route path="create/arrest-warrant" element={<CreateArrestWarrant />} />
           <Route path="history" element={<DocumentHistory />} />
           <Route path="document/:id" element={<GeneratedDocument />} />
           <Route path="profile" element={<OfficerProfile />} />

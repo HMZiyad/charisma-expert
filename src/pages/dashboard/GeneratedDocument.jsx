@@ -1,7 +1,42 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { FileText, RefreshCw, Download, AlertTriangle, Loader2 } from 'lucide-react';
+import { FileText, RefreshCw, Download, AlertTriangle, Loader2, Database } from 'lucide-react';
 import { getDocument, regenerateDocument, exportDocument } from '../../api/documents';
+
+const renderFormData = (data, level = 0) => {
+  if (data === null || data === undefined || data === '') return <span className="text-gray-400">N/A</span>;
+  if (typeof data !== 'object') return <span className="text-gray-900 font-medium break-words">{String(data)}</span>;
+  
+  if (Array.isArray(data)) {
+    if (data.length === 0) return <span className="text-gray-400">None</span>;
+    return (
+      <ul className="list-disc pl-5 space-y-2 mt-1">
+        {data.map((item, i) => (
+          <li key={i}>{renderFormData(item, level + 1)}</li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <div className={`space-y-3 ${level > 0 ? 'mt-2' : ''}`}>
+      {Object.entries(data).map(([key, value]) => {
+        if (key === 'attachments' && Array.isArray(value) && value.length === 0) return null;
+        
+        return (
+          <div key={key} className={level === 0 ? "pb-3 border-b border-gray-100 last:border-0 last:pb-0" : ""}>
+            <span className={`capitalize text-gray-500 font-semibold ${level === 0 ? 'text-xs uppercase tracking-wider block mb-1' : 'text-sm mr-2'}`}>
+              {key.replace(/_/g, ' ')}{level > 0 ? ':' : ''}
+            </span>
+            <div className={level === 0 ? "text-sm" : "inline-block text-sm align-top"}>
+              {renderFormData(value, level + 1)}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  );
+};
 
 export default function GeneratedDocument() {
   const { id } = useParams();
@@ -172,21 +207,46 @@ export default function GeneratedDocument() {
         </div>
       )}
 
-      {/* Workspace Editor */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[600px]">
-        {/* Editor Toolbar */}
-        <div className="bg-gray-50/80 px-6 py-3 border-b border-gray-200 flex items-center justify-between">
-          <span className="text-sm font-semibold text-gray-600">Document Editor</span>
-          <span className="text-xs text-gray-500">Model: {doc.model_used || 'Unknown'} • Generation time: {(doc.generation_time_ms / 1000).toFixed(1)}s</span>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Original Input Data */}
+        <div className="lg:col-span-1 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[600px]">
+          <div className="bg-gray-50/80 px-6 py-3 border-b border-gray-200 flex items-center gap-2">
+            <Database size={16} className="text-gray-400" />
+            <span className="text-sm font-semibold text-gray-600">Original Input Data</span>
+          </div>
+          <div className="p-6 overflow-y-auto bg-white flex-1">
+            {(() => {
+              let parsedData = doc.form_data;
+              if (typeof parsedData === 'string') {
+                try {
+                  parsedData = JSON.parse(parsedData);
+                } catch (e) {
+                  // Keep as string if parsing fails
+                }
+              }
+              return renderFormData(parsedData);
+            })()}
+          </div>
         </div>
 
-        {/* Editor Content */}
-        <div className="flex-1 bg-gray-50/30 overflow-y-auto">
-          <textarea
-            className="w-full h-full p-12 bg-transparent text-gray-800 text-lg leading-relaxed font-serif resize-none focus:outline-none"
-            value={editedText}
-            onChange={(e) => setEditedText(e.target.value)}
-          />
+        {/* Workspace Editor */}
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[600px]">
+          {/* Editor Toolbar */}
+          <div className="bg-gray-50/80 px-6 py-3 border-b border-gray-200 flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-600">Generated Narrative</span>
+            <span className="text-xs text-gray-500">Model: {doc.model_used || 'Unknown'} • Time: {(doc.generation_time_ms / 1000).toFixed(1)}s</span>
+          </div>
+
+          {/* Editor Content */}
+          <div className="flex-1 bg-gray-50/30 overflow-y-auto">
+            <textarea
+              className="w-full h-full p-8 md:p-12 bg-transparent text-gray-800 text-lg leading-relaxed font-serif resize-none focus:outline-none"
+              value={editedText}
+              onChange={(e) => setEditedText(e.target.value)}
+            />
+          </div>
         </div>
       </div>
     </div>

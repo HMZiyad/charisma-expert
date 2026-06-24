@@ -1,17 +1,121 @@
-import { Download, DollarSign, Users, TrendingDown, ChevronDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Download, DollarSign, Users, TrendingDown, ChevronDown, Plus, Pencil, Trash2, Loader2, X, Check } from 'lucide-react';
+import { listAdminPlans, createPlan, updatePlan, deletePlan } from '../../api/adminPanel';
 
 const transactions = [
-  { id: 1, date: 'Oct 1, 2023', name: 'Officer J. Miller', accountId: 'u1', plan: 'Patrol', amount: '$ 49.99', status: 'Paid' },
-  { id: 2, date: 'Oct 5, 2023', name: 'Det. S. Carter', accountId: 'u2', plan: 'Detective', amount: '$ 299.0', status: 'Paid' },
-  { id: 3, date: 'Oct 10, 2023', name: 'Capt. R. Vance', accountId: 'u3', plan: 'Department', amount: '$ 299.0', status: 'Paid' },
-  { id: 4, date: 'Oct 10, 2023', name: 'Capt. R. Vance', accountId: 'u3', plan: 'Department', amount: '$ 299.0', status: 'Paid' },
-  { id: 5, date: 'Oct 10, 2023', name: 'Capt. R. Vance', accountId: 'u3', plan: 'Department', amount: '$ 299.0', status: 'Paid' },
-  { id: 6, date: 'Oct 10, 2023', name: 'Capt. R. Vance', accountId: 'u3', plan: 'Department', amount: '$ 299.0', status: 'Paid' },
-  { id: 7, date: 'Oct 10, 2023', name: 'Capt. R. Vance', accountId: 'u3', plan: 'Department', amount: '$ 299.0', status: 'Paid' },
-  { id: 8, date: 'Sep 10, 2023', name: 'Det. M. Rossi', accountId: 'u5', plan: 'Department', amount: '$ 299.0', status: 'Failed' },
+  { id: 1, date: 'Oct 1, 2026', name: 'Officer J. Miller', accountId: 'u1', plan: 'Patrol', amount: '$ 49.99', status: 'Paid' },
+  { id: 2, date: 'Oct 5, 2026', name: 'Det. S. Carter', accountId: 'u2', plan: 'Detective', amount: '$ 299.0', status: 'Paid' },
+  { id: 3, date: 'Oct 10, 2026', name: 'Capt. R. Vance', accountId: 'u3', plan: 'Department', amount: '$ 299.0', status: 'Paid' },
+  { id: 8, date: 'Sep 10, 2026', name: 'Det. M. Rossi', accountId: 'u5', plan: 'Department', amount: '$ 299.0', status: 'Failed' },
 ];
 
 const Billing = () => {
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
+
+  const initialFormState = {
+    name: '',
+    display_name: '',
+    description: '',
+    price_monthly: '0.00',
+    price_yearly: '0.00',
+    document_limit: 5,
+    can_incident_report: true,
+    can_search_warrant: false,
+    can_arrest_warrant: false,
+    can_save_history: true,
+    is_active: true,
+    sort_order: 0
+  };
+
+  const [formData, setFormData] = useState(initialFormState);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchPlans = () => {
+    setLoading(true);
+    listAdminPlans()
+      .then(({ data }) => setPlans(data))
+      .catch((err) => console.error("Failed to fetch plans", err))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchPlans();
+  }, []);
+
+  const openCreateModal = () => {
+    setEditingPlan(null);
+    setFormData(initialFormState);
+    setError('');
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (plan) => {
+    setEditingPlan(plan);
+    setFormData({
+      name: plan.name || '',
+      display_name: plan.display_name || '',
+      description: plan.description || '',
+      price_monthly: plan.price_monthly || '0.00',
+      price_yearly: plan.price_yearly || '0.00',
+      document_limit: plan.document_limit ?? 5,
+      can_incident_report: plan.can_incident_report ?? true,
+      can_search_warrant: plan.can_search_warrant ?? false,
+      can_arrest_warrant: plan.can_arrest_warrant ?? false,
+      can_save_history: plan.can_save_history ?? true,
+      is_active: plan.is_active ?? true,
+      sort_order: plan.sort_order ?? 0
+    });
+    setError('');
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (pk) => {
+    if (!window.confirm("Are you sure you want to delete this plan?")) return;
+    try {
+      await deletePlan(pk);
+      fetchPlans();
+    } catch (err) {
+      alert("Failed to delete plan. It might have active subscriptions.");
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      if (editingPlan) {
+        await updatePlan(editingPlan.id, formData);
+      } else {
+        await createPlan(formData);
+      }
+      setIsModalOpen(false);
+      fetchPlans();
+    } catch (err) {
+      // Validation errors might be an object mapping fields to array of messages
+      if (err?.response?.data && typeof err.response.data === 'object' && !err.response.data.error) {
+         const msgs = Object.entries(err.response.data).map(([k, v]) => `${k}: ${v}`).join(', ');
+         setError(msgs || "Failed to save plan");
+      } else {
+         setError(err?.response?.data?.error?.detail || err?.response?.data?.detail || "Failed to save plan");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData({
+      ...formData,
+      [name]: type === 'checkbox' ? checked : value
+    });
+  };
+
   return (
     <div className="animate-in fade-in duration-500 pb-10">
       <div className="flex justify-between items-center mb-8">
@@ -56,8 +160,68 @@ const Billing = () => {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        
+        {/* Subscription Plans Management */}
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col h-full xl:col-span-1">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Subscription Plans</h2>
+              <p className="text-sm text-gray-500">Manage pricing & access rules globally.</p>
+            </div>
+            <button onClick={openCreateModal} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors">
+              <Plus size={20} />
+            </button>
+          </div>
+
+          <div className="space-y-4 flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="flex justify-center py-10"><Loader2 className="animate-spin text-gray-400" size={24} /></div>
+            ) : plans.length === 0 ? (
+              <div className="text-center py-10 text-gray-400 text-sm">No plans found. Create one.</div>
+            ) : (
+              plans.map(plan => (
+                <div key={plan.id} className="border border-gray-200 rounded-lg p-5 hover:border-gray-300 transition-colors">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="text-md font-bold text-gray-900">{plan.display_name}</h3>
+                      <p className="text-xs text-gray-500 font-mono mt-0.5">{plan.name}</p>
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => openEditModal(plan)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded"><Pencil size={16} /></button>
+                      <button onClick={() => handleDelete(plan.id)} className="p-1.5 text-gray-400 hover:text-red-600 rounded"><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                  
+                  <div className="mb-3 text-lg font-extrabold text-gray-900">
+                    ${plan.price_monthly} <span className="text-xs font-normal text-gray-500">/mo</span>
+                  </div>
+
+                  <div className="space-y-2 mt-4">
+                    <div className="flex items-center space-x-2">
+                      {plan.can_incident_report ? <Check size={14} className="text-emerald-500" /> : <X size={14} className="text-gray-300" />}
+                      <span className={`text-xs ${plan.can_incident_report ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>Incident Reports</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {plan.can_search_warrant ? <Check size={14} className="text-emerald-500" /> : <X size={14} className="text-gray-300" />}
+                      <span className={`text-xs ${plan.can_search_warrant ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>Search Warrants</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {plan.can_arrest_warrant ? <Check size={14} className="text-emerald-500" /> : <X size={14} className="text-gray-300" />}
+                      <span className={`text-xs ${plan.can_arrest_warrant ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>Arrest Warrants</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Check size={14} className="text-emerald-500" />
+                      <span className="text-xs text-gray-700 font-medium">{plan.document_limit === -1 ? 'Unlimited' : plan.document_limit} Documents/mo</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         {/* Transaction Log */}
-        <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
           <div className="p-5 border-b border-gray-200 flex justify-between items-center bg-white">
             <h2 className="text-lg font-bold text-gray-900">Transaction Log</h2>
             <div className="relative">
@@ -72,7 +236,7 @@ const Billing = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto flex-1">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-white">
                 <tr>
@@ -106,47 +270,95 @@ const Billing = () => {
             </table>
           </div>
         </div>
-
-        {/* Access Rules Matrix */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col h-full">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Access Rules Matrix</h2>
-            <p className="text-sm text-gray-500 mb-6">Tie AI modules to subscription plans globally.</p>
-          </div>
-
-          <div className="space-y-4 flex-1">
-            <PlanRulesCard title="Patrol Plan" defaultChecked={[]} />
-            <PlanRulesCard title="Detective Plan" defaultChecked={[]} />
-            <PlanRulesCard title="Department Plan" defaultChecked={[]} />
-          </div>
-
-          <button className="w-full mt-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
-            Save Rules
-          </button>
-        </div>
       </div>
+
+      {/* Plan Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">{editingPlan ? 'Edit Plan' : 'Create New Plan'}</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto">
+              {error && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
+              
+              <form id="plan-form" onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Internal Name *</label>
+                    <input type="text" name="name" value={formData.name} onChange={handleInputChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. free, pro_monthly" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Display Name *</label>
+                    <input type="text" name="display_name" value={formData.display_name} onChange={handleInputChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. Detective Plan" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                    <input type="text" name="description" value={formData.description} onChange={handleInputChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Short description for the pricing page" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Monthly Price ($) *</label>
+                    <input type="number" step="0.01" name="price_monthly" value={formData.price_monthly} onChange={handleInputChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Document Limit / Month *</label>
+                    <input type="number" name="document_limit" value={formData.document_limit} onChange={handleInputChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="-1 for unlimited" />
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-gray-100">
+                  <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Module Access Rules</h3>
+                  <div className="space-y-3">
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                      <input type="checkbox" name="can_incident_report" checked={formData.can_incident_report} onChange={handleInputChange} className="form-checkbox h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                      <span className="text-gray-700 font-medium">Incident Reports</span>
+                    </label>
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                      <input type="checkbox" name="can_search_warrant" checked={formData.can_search_warrant} onChange={handleInputChange} className="form-checkbox h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                      <span className="text-gray-700 font-medium">Search Warrants</span>
+                    </label>
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                      <input type="checkbox" name="can_arrest_warrant" checked={formData.can_arrest_warrant} onChange={handleInputChange} className="form-checkbox h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                      <span className="text-gray-700 font-medium">Arrest Warrants</span>
+                    </label>
+                    <label className="flex items-center space-x-3 cursor-pointer mt-3">
+                      <input type="checkbox" name="can_save_history" checked={formData.can_save_history} onChange={handleInputChange} className="form-checkbox h-5 w-5 text-purple-600 rounded border-gray-300 focus:ring-purple-500" />
+                      <span className="text-gray-700 font-medium">Save Document History</span>
+                    </label>
+                  </div>
+                </div>
+                
+                <div className="pt-6 border-t border-gray-100">
+                  <label className="flex items-center space-x-3 cursor-pointer">
+                    <input type="checkbox" name="is_active" checked={formData.is_active} onChange={handleInputChange} className="form-checkbox h-5 w-5 text-emerald-500 rounded border-gray-300 focus:ring-emerald-500" />
+                    <span className="text-gray-900 font-bold">Plan is Active (Visible to public)</span>
+                  </label>
+                </div>
+              </form>
+            </div>
+            
+            <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button type="submit" form="plan-form" disabled={saving} className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center disabled:opacity-70 disabled:cursor-not-allowed">
+                {saving && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
+                {editingPlan ? 'Save Changes' : 'Create Plan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
-const PlanRulesCard = ({ title, defaultChecked }) => (
-  <div className="border border-gray-200 rounded-lg p-5">
-    <h3 className="text-md font-bold text-gray-900 mb-4">{title}</h3>
-    <div className="space-y-3">
-      <label className="flex items-center space-x-3 cursor-pointer">
-        <input type="checkbox" className="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
-        <span className="text-sm text-gray-700">Incident Reports</span>
-      </label>
-      <label className="flex items-center space-x-3 cursor-pointer">
-        <input type="checkbox" className="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
-        <span className="text-sm text-gray-700">Search Warrants</span>
-      </label>
-      <label className="flex items-center space-x-3 cursor-pointer">
-        <input type="checkbox" className="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
-        <span className="text-sm text-gray-700">Arrest Warrants</span>
-      </label>
-    </div>
-  </div>
-);
 
 export default Billing;

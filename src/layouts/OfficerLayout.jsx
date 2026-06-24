@@ -65,8 +65,8 @@ export default function OfficerLayout() {
 
         {/* User Info */}
         <div className="p-6 border-b border-gray-800">
-          <div className="text-white font-medium text-sm mb-1">{user?.name || 'Detective Sarah Jenkins'}</div>
-          <div className="text-gray-500 text-xs">Badge: {user?.badge || 'NYPD-7492'}</div>
+          <div className="text-white font-medium text-sm mb-1">{user ? `${user.first_name} ${user.last_name}` : 'Loading...'}</div>
+          <div className="text-gray-500 text-xs">Badge: {user?.badge_number || '---'}</div>
         </div>
 
         {/* Navigation */}
@@ -111,16 +111,26 @@ export default function OfficerLayout() {
                     </Link>
                   </li>
                   <li>
-                    <button className="w-full flex items-center pl-14 pr-6 py-2.5 text-sm text-gray-500 cursor-not-allowed">
+                    <Link 
+                      to="/dashboard/create/search-warrant" 
+                      className={`flex items-center pl-14 pr-6 py-2.5 text-sm transition-colors ${
+                        isActive('/dashboard/create/search-warrant') ? 'text-white' : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
                       <FileSearch size={16} className="mr-3" />
                       Search Warrant
-                    </button>
+                    </Link>
                   </li>
                   <li>
-                    <button className="w-full flex items-center pl-14 pr-6 py-2.5 text-sm text-gray-500 cursor-not-allowed">
+                    <Link 
+                      to="/dashboard/create/arrest-warrant" 
+                      className={`flex items-center pl-14 pr-6 py-2.5 text-sm transition-colors ${
+                        isActive('/dashboard/create/arrest-warrant') ? 'text-white' : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
                       <UserPlus size={16} className="mr-3" />
                       Arrest Warrant
-                    </button>
+                    </Link>
                   </li>
                 </ul>
               )}
@@ -184,7 +194,7 @@ export default function OfficerLayout() {
               <span className="text-xs font-medium text-gray-700">System Secure</span>
             </div>
             <div className="flex items-center bg-orange-50 px-3 py-1.5 rounded-full border border-orange-100">
-              <span className="text-xs font-medium text-orange-600">{user?.plan || 'Detective Plan'}</span>
+              <span className="text-xs font-medium text-orange-600 uppercase tracking-wide">{user?.role || 'Officer'}</span>
             </div>
           </div>
         </header>

@@ -12,27 +12,59 @@ export default function CreateIncidentReport() {
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [location, setLocation] = useState('');
-  const [rawNotes, setRawNotes] = useState('');
+  
+  // Facts
+  const [factsWho, setFactsWho] = useState('');
+  const [factsWhat, setFactsWhat] = useState('');
+  const [factsWhen, setFactsWhen] = useState('');
+  const [factsWhere, setFactsWhere] = useState('');
+  const [factsHow, setFactsHow] = useState('');
+  const [factsOfficerActions, setFactsOfficerActions] = useState('');
+  
   const [narrativeStyle, setNarrativeStyle] = useState('third_person'); // match API enum
   
-  const [entities, setEntities] = useState([
-    { id: 1, type: 'Suspect', field1: '', field2: '' },
-    { id: 2, type: 'Evidence', field1: '', field2: '' }
+  // Involved Parties
+  const [involvedParties, setInvolvedParties] = useState([
+    { id: 1, role: 'complainant', full_name: '', id_number: '', phone: '' }
   ]);
+
+  // Property Items
+  const [propertyItems, setPropertyItems] = useState([]);
+
+  // Notifications
+  const [notifications, setNotifications] = useState({
+    weapon_involved: false,
+    alcohol_drugs: false,
+    is_hazing: false
+  });
+  
+  const [incidentUrgency, setIncidentUrgency] = useState('normal');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const addEntity = (type) => {
-    setEntities([...entities, { id: Date.now(), type, field1: '', field2: '' }]);
+  const addInvolvedParty = (role) => {
+    setInvolvedParties([...involvedParties, { id: Date.now(), role, full_name: '', id_number: '', phone: '' }]);
   };
 
-  const removeEntity = (id) => {
-    setEntities(entities.filter(e => e.id !== id));
+  const removeInvolvedParty = (id) => {
+    setInvolvedParties(involvedParties.filter(p => p.id !== id));
   };
 
-  const updateEntity = (id, field, value) => {
-    setEntities(entities.map(e => e.id === id ? { ...e, [field]: value } : e));
+  const updateInvolvedParty = (id, field, value) => {
+    setInvolvedParties(involvedParties.map(p => p.id === id ? { ...p, [field]: value } : p));
+  };
+
+  const addPropertyItem = () => {
+    setPropertyItems([...propertyItems, { id: Date.now(), type: 'currency', value: '', status: 'missing' }]);
+  };
+
+  const removePropertyItem = (id) => {
+    setPropertyItems(propertyItems.filter(p => p.id !== id));
+  };
+
+  const updatePropertyItem = (id, field, value) => {
+    setPropertyItems(propertyItems.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
 
   const handleSubmit = async (e) => {
@@ -40,32 +72,20 @@ export default function CreateIncidentReport() {
     setLoading(true);
     setError('');
 
-    // Transform form state into API shape
-    const involved_parties = [];
-    const property_items = [];
+    // Clean up empty involved parties
+    const finalParties = involvedParties.filter(p => p.full_name.trim() !== '').map(p => ({
+      role: p.role,
+      full_name: p.full_name,
+      id_number: p.id_number || undefined,
+      phone: p.phone || undefined
+    }));
 
-    entities.forEach(ent => {
-      if (!ent.field1 && !ent.field2) return;
-      if (ent.type === 'Evidence') {
-        property_items.push({
-          type: 'other',
-          value: null,
-          status: 'unknown',
-          description: `${ent.field1} - ${ent.field2}`.trim()
-        });
-      } else {
-        const roleMap = {
-          'Suspect': 'alleged',
-          'Victim': 'victim',
-          'Witness': 'witness'
-        };
-        involved_parties.push({
-          role: roleMap[ent.type] || 'other',
-          full_name: ent.field1,
-          phone: ent.field2
-        });
-      }
-    });
+    // Clean up empty property items
+    const finalItems = propertyItems.filter(p => p.value !== '' || p.type.trim() !== '').map(p => ({
+      type: p.type,
+      value: p.value ? Number(p.value) : 0,
+      status: p.status
+    }));
 
     const payload = {
       doc_type: 'incident_report',
@@ -73,20 +93,22 @@ export default function CreateIncidentReport() {
       form_data: {
         case_number: caseNumber || null,
         incident: {
-          categories: [incidentType],
-          urgency: 'normal',
+          categories: incidentType.split(',').map(c => c.trim()).filter(Boolean),
+          urgency: incidentUrgency,
           date,
           time,
           location
         },
-        involved_parties,
-        property_items,
-        notifications: { weapon_involved: false, alcohol_drugs: false, is_hazing: false },
+        involved_parties: finalParties,
+        property_items: finalItems,
+        notifications,
         facts: {
-          what: `Incident: ${incidentType}`,
-          where: location,
-          when: `${date} ${time}`,
-          officer_actions: rawNotes
+          who: factsWho,
+          what: factsWhat || `Incident: ${incidentType}`,
+          where: factsWhere || location,
+          when: factsWhen || `${date} ${time}`,
+          how: factsHow,
+          officer_actions: factsOfficerActions
         },
         attachments: []
       }
@@ -111,19 +133,14 @@ export default function CreateIncidentReport() {
     }
   };
 
-  const getEntityStyles = (type) => {
-    switch (type) {
-      case 'Suspect': return 'bg-red-50 text-red-700';
-      case 'Victim': return 'bg-purple-50 text-purple-700';
-      case 'Witness': return 'bg-blue-50 text-blue-700';
-      case 'Evidence': return 'bg-yellow-50 text-yellow-700';
+  const getRoleStyles = (role) => {
+    switch (role) {
+      case 'alleged': return 'bg-red-50 text-red-700';
+      case 'victim': return 'bg-purple-50 text-purple-700';
+      case 'witness': return 'bg-blue-50 text-blue-700';
+      case 'complainant': return 'bg-green-50 text-green-700';
       default: return 'bg-gray-50 text-gray-700';
     }
-  };
-
-  const getEntityPlaceholders = (type) => {
-    if (type === 'Evidence') return ['Item Description', 'Location found / Serial #'];
-    return ['Full Name', 'DOB / Contact Details'];
   };
 
   return (
@@ -186,7 +203,7 @@ export default function CreateIncidentReport() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
                 <input 
@@ -207,6 +224,19 @@ export default function CreateIncidentReport() {
                   required 
                 />
               </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Urgency</label>
+                <select
+                  value={incidentUrgency}
+                  onChange={(e) => setIncidentUrgency(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors text-gray-700"
+                >
+                  <option value="low">Low</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
             </div>
 
             <div>
@@ -221,64 +251,223 @@ export default function CreateIncidentReport() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Raw Facts / Field Notes (Who, What, Why, How) *</label>
-              <textarea 
-                rows="5" 
-                value={rawNotes}
-                onChange={(e) => setRawNotes(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors resize-none" 
-                placeholder="Enter raw notes here. The AI will structure them into a formal narrative..."
-                required
-              ></textarea>
+            <div className="pt-4 border-t border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900 font-serif mb-4">Detailed Facts</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Who (Parties involved)</label>
+                  <textarea 
+                    rows="3" 
+                    value={factsWho}
+                    onChange={(e) => setFactsWho(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors resize-none" 
+                    placeholder="e.g. Complainant Justin Kim; alleged party Martrece Smith..."
+                  ></textarea>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">What (Incident description)</label>
+                  <textarea 
+                    rows="3" 
+                    value={factsWhat}
+                    onChange={(e) => setFactsWhat(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors resize-none" 
+                    placeholder="e.g. Report of $400 in currency missing from a wallet..."
+                  ></textarea>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">When (Timeframe details)</label>
+                  <textarea 
+                    rows="3" 
+                    value={factsWhen}
+                    onChange={(e) => setFactsWhen(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors resize-none" 
+                    placeholder="e.g. Between 1930 on 01/04 and 1930 on 01/06..."
+                  ></textarea>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Where (Location details)</label>
+                  <textarea 
+                    rows="3" 
+                    value={factsWhere}
+                    onChange={(e) => setFactsWhere(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors resize-none" 
+                    placeholder="e.g. Dorm room NC1 1240B..."
+                  ></textarea>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">How (Modus Operandi)</label>
+                  <textarea 
+                    rows="3" 
+                    value={factsHow}
+                    onChange={(e) => setFactsHow(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors resize-none" 
+                    placeholder="e.g. Wallet found under bed, cash missing..."
+                  ></textarea>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Officer Actions *</label>
+                  <textarea 
+                    rows="3" 
+                    value={factsOfficerActions}
+                    onChange={(e) => setFactsOfficerActions(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors resize-none" 
+                    placeholder="e.g. Took report at 1945; called Smith..."
+                    required
+                  ></textarea>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Entity Profiles */}
+        {/* Involved Parties */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-          <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900 font-serif">Entity Profiles</h2>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => addEntity('Suspect')} className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">+ Suspect</button>
-              <button type="button" onClick={() => addEntity('Victim')} className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">+ Victim</button>
-              <button type="button" onClick={() => addEntity('Witness')} className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">+ Witness</button>
-              <button type="button" onClick={() => addEntity('Evidence')} className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">+ Evidence</button>
+          <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-4">
+            <h2 className="text-xl font-bold text-gray-900 font-serif">Involved Parties</h2>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => addInvolvedParty('complainant')} className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">+ Complainant</button>
+              <button type="button" onClick={() => addInvolvedParty('victim')} className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">+ Victim</button>
+              <button type="button" onClick={() => addInvolvedParty('witness')} className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">+ Witness</button>
+              <button type="button" onClick={() => addInvolvedParty('alleged')} className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">+ Alleged</button>
             </div>
           </div>
           <div className="p-6 space-y-4">
-            {entities.map((entity) => {
-              const placeholders = getEntityPlaceholders(entity.type);
-              return (
-                <div key={entity.id} className="flex flex-col md:flex-row items-center gap-4 p-4 bg-gray-50/50 border border-gray-100 rounded-xl">
-                  <div className={`px-4 py-1.5 rounded-full text-xs font-bold w-full md:w-24 text-center ${getEntityStyles(entity.type)}`}>
-                    {entity.type}
-                  </div>
+            {involvedParties.map((party) => (
+              <div key={party.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 bg-gray-50/50 border border-gray-100 rounded-xl items-center">
+                <div className={`md:col-span-2 px-4 py-1.5 rounded-full text-xs font-bold text-center capitalize ${getRoleStyles(party.role)}`}>
+                  {party.role}
+                </div>
+                <div className="md:col-span-3">
                   <input 
                     type="text" 
-                    value={entity.field1}
-                    onChange={(e) => updateEntity(entity.id, 'field1', e.target.value)}
-                    className="flex-1 w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm" 
-                    placeholder={placeholders[0]} 
+                    value={party.full_name}
+                    onChange={(e) => updateInvolvedParty(party.id, 'full_name', e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm" 
+                    placeholder="Full Name" 
                   />
+                </div>
+                <div className="md:col-span-3">
                   <input 
                     type="text" 
-                    value={entity.field2}
-                    onChange={(e) => updateEntity(entity.id, 'field2', e.target.value)}
-                    className="flex-1 w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm" 
-                    placeholder={placeholders[1]} 
+                    value={party.id_number}
+                    onChange={(e) => updateInvolvedParty(party.id, 'id_number', e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm" 
+                    placeholder="ID Number" 
                   />
-                  <button type="button" onClick={() => removeEntity(entity.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors md:ml-auto">
+                </div>
+                <div className="md:col-span-3">
+                  <input 
+                    type="text" 
+                    value={party.phone}
+                    onChange={(e) => updateInvolvedParty(party.id, 'phone', e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm" 
+                    placeholder="Phone" 
+                  />
+                </div>
+                <div className="md:col-span-1 flex justify-end">
+                  <button type="button" onClick={() => removeInvolvedParty(party.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
                     <Trash2 size={20} />
                   </button>
                 </div>
-              );
-            })}
-            {entities.length === 0 && (
+              </div>
+            ))}
+            {involvedParties.length === 0 && (
               <div className="text-center py-6 text-gray-400 text-sm">
-                No entities added yet. Use the buttons above to add suspects, victims, witnesses, or evidence.
+                No parties added yet.
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Property Items */}
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900 font-serif">Property Items</h2>
+            <button type="button" onClick={addPropertyItem} className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
+              + Add Property
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            {propertyItems.map((item) => (
+              <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 bg-gray-50/50 border border-gray-100 rounded-xl items-center">
+                <div className="md:col-span-4">
+                  <input 
+                    type="text" 
+                    value={item.type}
+                    onChange={(e) => updatePropertyItem(item.id, 'type', e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm" 
+                    placeholder="Type (e.g. currency, electronics)" 
+                  />
+                </div>
+                <div className="md:col-span-3">
+                  <input 
+                    type="number" 
+                    value={item.value}
+                    onChange={(e) => updatePropertyItem(item.id, 'value', e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm" 
+                    placeholder="Value ($)" 
+                  />
+                </div>
+                <div className="md:col-span-4">
+                  <select
+                    value={item.status}
+                    onChange={(e) => updatePropertyItem(item.id, 'status', e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm text-gray-700"
+                  >
+                    <option value="missing">Missing</option>
+                    <option value="recovered">Recovered</option>
+                    <option value="damaged">Damaged</option>
+                    <option value="evidence">Evidence</option>
+                  </select>
+                </div>
+                <div className="md:col-span-1 flex justify-end">
+                  <button type="button" onClick={() => removePropertyItem(item.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {propertyItems.length === 0 && (
+              <div className="text-center py-6 text-gray-400 text-sm">
+                No property items added.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Notifications */}
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-200">
+            <h2 className="text-xl font-bold text-gray-900 font-serif">Critical Notifications</h2>
+          </div>
+          <div className="p-6 flex flex-wrap gap-8">
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={notifications.weapon_involved}
+                onChange={(e) => setNotifications({...notifications, weapon_involved: e.target.checked})}
+                className="form-checkbox h-5 w-5 text-red-600 rounded border-gray-300 focus:ring-red-500" 
+              />
+              <span className="text-gray-800 font-semibold text-sm">Weapon Involved</span>
+            </label>
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={notifications.alcohol_drugs}
+                onChange={(e) => setNotifications({...notifications, alcohol_drugs: e.target.checked})}
+                className="form-checkbox h-5 w-5 text-purple-600 rounded border-gray-300 focus:ring-purple-500" 
+              />
+              <span className="text-gray-800 font-semibold text-sm">Alcohol/Drugs</span>
+            </label>
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={notifications.is_hazing}
+                onChange={(e) => setNotifications({...notifications, is_hazing: e.target.checked})}
+                className="form-checkbox h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500" 
+              />
+              <span className="text-gray-800 font-semibold text-sm">Hazing Related</span>
+            </label>
           </div>
         </div>
 
