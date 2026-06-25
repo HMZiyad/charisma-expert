@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Shield, Menu, X, ChevronDown, Lock } from 'lucide-react';
+import { Shield, Menu, X, ChevronDown, Lock, LayoutDashboard } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import logoImg from '../assets/logo.png';
 
 const navLinks = [
@@ -17,6 +18,7 @@ export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { pathname } = useLocation();
+  const { user } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -64,19 +66,31 @@ export default function Navbar() {
 
           {/* Auth buttons — pinned to the right */}
           <div className="flex items-center gap-3 ml-auto z-10">
-            <Link
-              to="/login"
-              className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-navy-800 transition-colors"
-            >
-              <Shield size={15} strokeWidth={1.5} />
-              Officer Login
-            </Link>
-            <Link
-              to="/signup"
-              className="bg-navy-800 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-navy-700 transition-colors"
-            >
-              Create Account
-            </Link>
+            {user ? (
+              <Link
+                to="/dashboard"
+                className="bg-navy-800 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-navy-700 transition-colors flex items-center gap-2"
+              >
+                {/* <LayoutDashboard size={16} /> */}
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-navy-800 transition-colors"
+                >
+                  <Shield size={15} strokeWidth={1.5} />
+                  Officer Login
+                </Link>
+                <Link
+                  to="/signup"
+                  className="bg-navy-800 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-navy-700 transition-colors"
+                >
+                  Create Account
+                </Link>
+              </>
+            )}
 
             {/* Mobile Menu Button */}
             <button
@@ -109,17 +123,21 @@ export default function Navbar() {
                 {label}
               </Link>
             ))}
-            
+
             {/* Show Officer Login here on very small screens where it's hidden in the top bar */}
-            <hr className="border-gray-100 my-1" />
-            <Link
-              to="/login"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="sm:hidden flex items-center gap-2 text-gray-700 hover:text-navy-800 font-medium text-lg"
-            >
-              <Shield size={18} strokeWidth={1.5} />
-              Officer Login
-            </Link>
+            {!user && (
+              <>
+                <hr className="border-gray-100 my-1" />
+                <Link
+                  to="/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="sm:hidden flex items-center gap-2 text-gray-700 hover:text-navy-800 font-medium text-lg"
+                >
+                  <Shield size={18} strokeWidth={1.5} />
+                  Officer Login
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}
