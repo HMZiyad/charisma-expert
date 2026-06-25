@@ -24,6 +24,14 @@ export default function OfficerLayout() {
   const navigate = useNavigate();
   const [isCreateOpen, setIsCreateOpen] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+
+  const handleRestrictedNav = (e) => {
+    if (!user?.is_verified && user?.role !== 'admin') {
+      e.preventDefault();
+      setShowVerificationModal(true);
+    }
+  };
 
   useEffect(() => {
     setIsSidebarOpen(false);
@@ -102,6 +110,7 @@ export default function OfficerLayout() {
                   <li>
                     <Link 
                       to="/dashboard/create/incident-report" 
+                      onClick={handleRestrictedNav}
                       className={`flex items-center pl-14 pr-6 py-2.5 text-sm transition-colors ${
                         isActive('/dashboard/create/incident-report') ? 'text-white' : 'text-gray-400 hover:text-white'
                       }`}
@@ -113,6 +122,7 @@ export default function OfficerLayout() {
                   <li>
                     <Link 
                       to="/dashboard/create/search-warrant" 
+                      onClick={handleRestrictedNav}
                       className={`flex items-center pl-14 pr-6 py-2.5 text-sm transition-colors ${
                         isActive('/dashboard/create/search-warrant') ? 'text-white' : 'text-gray-400 hover:text-white'
                       }`}
@@ -124,6 +134,7 @@ export default function OfficerLayout() {
                   <li>
                     <Link 
                       to="/dashboard/create/arrest-warrant" 
+                      onClick={handleRestrictedNav}
                       className={`flex items-center pl-14 pr-6 py-2.5 text-sm transition-colors ${
                         isActive('/dashboard/create/arrest-warrant') ? 'text-white' : 'text-gray-400 hover:text-white'
                       }`}
@@ -201,9 +212,38 @@ export default function OfficerLayout() {
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto">
-          <Outlet />
+          <Outlet context={{ handleRestrictedNav }} />
         </main>
       </div>
+
+      {/* Verification Modal */}
+      {showVerificationModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative">
+            <button 
+              onClick={() => setShowVerificationModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X size={20} />
+            </button>
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+                <Shield className="text-orange-600" size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Verification Required</h3>
+              <p className="text-gray-600 mb-6">
+                Your account is currently pending admin verification. Please wait for an administrator to verify your credentials before accessing document generation services.
+              </p>
+              <button 
+                onClick={() => setShowVerificationModal(false)}
+                className="w-full bg-gray-900 text-white font-medium py-2.5 rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                Understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

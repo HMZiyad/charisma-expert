@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { listDocuments } from '../../api/documents';
 import { getSubscriptionStatus } from '../../api/subscriptions';
@@ -24,6 +24,7 @@ const DOC_TYPE_LABELS = {
 
 export default function OfficerDashboard() {
   const { user } = useAuth();
+  const { handleRestrictedNav } = useOutletContext() || {};
 
   const [recentDocs, setRecentDocs] = useState([]);
   const [subscription, setSubscription] = useState(null);
@@ -121,7 +122,7 @@ export default function OfficerDashboard() {
             <p className="text-gray-500 text-sm mb-8 leading-relaxed">
               Generate comprehensive, structured incident narratives from raw field notes and facts.
             </p>
-            <Link to="/dashboard/create/incident-report" className="text-blue-600 font-semibold text-sm flex items-center hover:text-blue-700">
+            <Link to="/dashboard/create/incident-report" onClick={handleRestrictedNav} className="text-blue-600 font-semibold text-sm flex items-center hover:text-blue-700">
               Launch Module <ArrowRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
             </Link>
           </div>
@@ -136,7 +137,7 @@ export default function OfficerDashboard() {
               <p className="text-gray-500 text-sm mb-8 leading-relaxed">
                 Draft legally sound search warrant affidavits with proper probable cause structuring.
               </p>
-              <Link to="/dashboard/create/search-warrant" className="text-blue-600 font-semibold text-sm flex items-center hover:text-blue-700">
+              <Link to="/dashboard/create/search-warrant" onClick={handleRestrictedNav} className="text-blue-600 font-semibold text-sm flex items-center hover:text-blue-700">
                 Launch Module <ArrowRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
               </Link>
             </div>
@@ -166,7 +167,7 @@ export default function OfficerDashboard() {
               <p className="text-gray-500 text-sm mb-8 leading-relaxed">
                 Create detailed arrest warrant applications based on suspect and case entity data.
               </p>
-              <Link to="/dashboard/create/arrest-warrant" className="text-blue-600 font-semibold text-sm flex items-center hover:text-blue-700">
+              <Link to="/dashboard/create/arrest-warrant" onClick={handleRestrictedNav} className="text-blue-600 font-semibold text-sm flex items-center hover:text-blue-700">
                 Launch Module <ArrowRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
               </Link>
             </div>
